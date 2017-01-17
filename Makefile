@@ -6,6 +6,7 @@ ACME_AIR_GIT:=https://github.com/acmeair/acmeair.git
 NOECHO:=@
 GIT:=git
 PATCH:=patch
+CURL:=curl
 DO:=/bin/sh -c true
 CD:=cd
 RM:=rm
@@ -25,6 +26,7 @@ if_running = $(shell docker inspect $(1) 2>&1 | grep "\"Running\": true" 1>/dev/
 
 AUTH_PORT = $(shell docker ps --filter name="acmeair_authservice" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9443\/tcp.*/\1/")
 WEB_PORT = $(shell docker ps --filter name="acmeair_web" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9080\/tcp.*/\1/")
+HOST_IP:=172.17.0.1
 
 all: acme_download mongo
 
@@ -44,15 +46,16 @@ mongo:
 	$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
 
 acmeair_authservice: mongo acmeair
-	$(NOECHO) docker run -d -P --name acmeair_authservice -e APP_NAME=authservice_app.js --link mongo_001:mongo acmeair/web 
+	$(NOECHO) $(DO) $(call if_container,acmeair_authservice,$(NOT_EXIST),docker run -d -P --name acmeair_authservice -e APP_NAME=authservice_app.js --link mongo_001:mongo acmeair/web)
 
 acmeair_web: acmeair_authservice 
-	$(NOECHO) docker run -d -P --name acmeair_web -e AUTH_SERVICE=0.0.0.0:$(AUTH_PORT) --link mongo_001:mongo acmeair/web 
+	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
 	echo "WEB PORT: $(WEB_PORT)"
 
 run: acmeair_web workload
-	#docker run -i -t --link acmeair_web:app acmeair/workload
-	docker run -i -t -e APP_PORT_9080_TCP_ADDR=0.0.0.0 -e APP_PORT_9080_TCP_PORT=$(WEB_PORT) --name acmeair_workload acmeair/workload
+	sleep 2
+	$(CURL) http://$(HOST_IP):$(WEB_PORT)/rest/api/loader/load?numCustomers=10000
+	docker run -i -t -e APP_PORT_9080_TCP_ADDR=$(HOST_IP) -e APP_PORT_9080_TCP_PORT=$(WEB_PORT) --name acmeair_workload acmeair/workload
 
 clean:
 	$(NOECHO) $(DO) $(call if_running,mongo_001,docker stop mongo_001)
