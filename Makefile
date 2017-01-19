@@ -52,10 +52,15 @@ acmeair_web: acmeair_authservice
 	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
 	echo "WEB PORT: $(WEB_PORT)"
 
+noise:
+	
+
+
 run: acmeair_web workload
+	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
 	sleep 2
 	$(CURL) http://$(HOST_IP):$(WEB_PORT)/rest/api/loader/load?numCustomers=10000
-	docker run -i -t -e APP_PORT_9080_TCP_ADDR=$(HOST_IP) -e APP_PORT_9080_TCP_PORT=$(WEB_PORT) --name acmeair_workload acmeair/workload
+	docker run -i -t -e APP_PORT_9080_TCP_ADDR=$(HOST_IP) -e APP_PORT_9080_TCP_PORT=$(WEB_PORT) -e LOOP_COUNT=100 --name acmeair_workload acmeair/workload
 
 clean:
 	$(NOECHO) $(DO) $(call if_running,mongo_001,docker stop mongo_001)
