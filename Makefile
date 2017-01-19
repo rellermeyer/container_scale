@@ -10,6 +10,7 @@ CURL:=curl
 DO:=/bin/sh -c true
 CD:=cd
 RM:=rm
+WGET:=wget
 
 EXISTS:=0
 NOT_EXIST:=1
@@ -19,6 +20,7 @@ NOT_EXIST:=1
 .PHONY: acmeair_nodejs
 .PHONY: acmeair_authservice
 .PHONY: mongo
+.PHONY: noise
 
 if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
 if_container = $(shell docker ps -a | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
@@ -52,9 +54,14 @@ acmeair_web: acmeair_authservice
 	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
 	echo "WEB PORT: $(WEB_PORT)"
 
-noise:
-	
+noise/httpd/images:
+	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
+	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Airbus_Pleiades_50cm_8bit_RGB_Yogyakarta.jpg
+	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
+	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/RapidEye_RapidEye_5m_RGB_Altotting_Germany_Agriculture_and_Forestry_2009MAY17_8bits_sub_r_2.jpg
 
+noise: noise/httpd/images
+	docker build -t noise:httpd noise/httpd
 
 run: acmeair_web workload
 	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
@@ -75,5 +82,7 @@ clean:
 depclean: clean
 	$(NOECHO) $(DO) $(call if_image,acmeair/web,$(EXISTS),docker rmi acmeair/web)
 	$(NOECHO) $(DO) $(call if_image,docker.io/mongo,$(EXISTS),docker rmi docker.io/mongo)
-	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(EXISTS),docker rmi acmeair/workload) 
-	$(RM) -rf acmeair-nodejs	
+	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(EXISTS),docker rmi acmeair/workload)
+	$(NOECHO) $(DO) $(call if_image,noise,$(EXISTS),docker rmi noise)
+	$(NOECHO) $(RM) -rf acmeair-nodejs
+	$(NOECHO) $(RM) -rf noise/httpd/images
