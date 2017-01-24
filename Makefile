@@ -59,15 +59,15 @@ noise/httpd/images:
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Airbus_Pleiades_50cm_8bit_RGB_Yogyakarta.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/RapidEye_RapidEye_5m_RGB_Altotting_Germany_Agriculture_and_Forestry_2009MAY17_8bits_sub_r_2.jpg
+	$(WGET) -P noide/httpd/images http://effigis.com/wp-content/uploads/2015/02/Iunctus_SPOT5_5m_8bit_RGB_DRA_torngat_mountains_national_park_8bits_1.jpg
 
 noise: noise/httpd/images
 	docker build -t noise:httpd noise/httpd
 
-run: acmeair_web workload
+run: acmeair_web workload noise
 	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
 	sleep 2
-	$(CURL) http://$(HOST_IP):$(WEB_PORT)/rest/api/loader/load?numCustomers=10000
-	docker run -i -t -e APP_PORT_9080_TCP_ADDR=$(HOST_IP) -e APP_PORT_9080_TCP_PORT=$(WEB_PORT) -e LOOP_COUNT=100 --name acmeair_workload acmeair/workload
+	perl benchmark.pl $(HOST_IP) $(WEB_PORT)
 
 clean:
 	$(NOECHO) $(DO) $(call if_running,mongo_001,docker stop mongo_001)
