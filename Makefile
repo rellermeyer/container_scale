@@ -83,6 +83,6 @@ depclean: clean
 	$(NOECHO) $(DO) $(call if_image,acmeair/web,$(EXISTS),docker rmi acmeair/web)
 	$(NOECHO) $(DO) $(call if_image,docker.io/mongo,$(EXISTS),docker rmi docker.io/mongo)
 	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(EXISTS),docker rmi acmeair/workload)
-	$(NOECHO) $(DO) $(call if_image,noise,$(EXISTS),docker rmi noise)
+	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(EXISTS),docker rmi noise:httpd)
 	$(NOECHO) $(RM) -rf acmeair-nodejs
 	$(NOECHO) $(RM) -rf noise/httpd/images
