@@ -10,7 +10,7 @@ use Time::HiRes qw(usleep);
 my $HOST_IP=shift;
 my $WEB_PORT=shift;
 my $NUM_CLIENTS=10;
-my $NUM_NOISE_INSTANCES=10;
+my $NUM_NOISE_INSTANCES=20;
 my $WORKLOAD_INSTANCES=1;
 my $THINK_TIME=100;
 
@@ -51,11 +51,10 @@ push @threads, threads->create(sub {
   my $f = @files;
 
   while($running) {
-    print "thread still running\n";
-
     my $port = $ports[int(rand($p))];
     my $file = $files[int(rand($f))];
-         
+    
+    print "client: http://$HOST_IP:$port/$file\n";     
     system("wget -q -O /dev/null http://$HOST_IP:$port/$file");    
 
     usleep($THINK_TIME);
