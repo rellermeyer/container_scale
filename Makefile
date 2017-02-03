@@ -55,17 +55,19 @@ acmeair_web: acmeair_authservice
 	echo "WEB PORT: $(WEB_PORT)"
 
 noise/httpd/images:
-	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
+#	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Airbus_Pleiades_50cm_8bit_RGB_Yogyakarta.jpg
-	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
+#	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/RapidEye_RapidEye_5m_RGB_Altotting_Germany_Agriculture_and_Forestry_2009MAY17_8bits_sub_r_2.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Iunctus_SPOT5_5m_8bit_RGB_DRA_torngat_mountains_national_park_8bits_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/GeoEye_Ikonos_1m_8bit_RGB_DRA_Oil_2005NOV25_8bits_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/GeoEye_GeoEye1_50cm_8bit_RGB_DRA_Mining_2009FEB14_8bits_sub_r_15.jpg
-#	$(WGET) -P noise/httpd/images http://129.123.22.68/globe/TrueMarble_PNG/TrueMarble.250m.21600x21600.E1.png
-#	$(WGET) -P noise/httpd/images http://129.123.22.68/globe/TrueMarble_PNG/TrueMarble.250m.21600x21600.E2.png
-#	$(WGET) -P noise/httpd/images http://129.123.22.68/globe/TrueMarble_PNG/TrueMarble.250m.21600x21600.E3.png
-	dd if=/dev/urandom of=noise/httpd/images/test.jpg bs=4096 count=102400
+	dd if=/dev/urandom of=noise/httpd/images/test1.jpg bs=4096 count=62500
+	dd if=/dev/urandom of=noise/httpd/images/test2.jpg bs=4096 count=62500
+	dd if=/dev/urandom of=noise/httpd/images/test3.jpg bs=4096 count=62500
+	dd if=/dev/urandom of=noise/httpd/images/test4.jpg bs=4096 count=62500
+	dd if=/dev/urandom of=noise/httpd/images/test5.jpg bs=4096 count=62500
+	dd if=/dev/urandom of=noise/httpd/images/test6.jpg bs=4096 count=62500
 
 noise: noise/httpd/images
 	docker build -t noise:httpd noise/httpd

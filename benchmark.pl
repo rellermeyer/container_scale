@@ -10,7 +10,7 @@ use Time::HiRes qw(usleep);
 my $HOST_IP=shift;
 my $WEB_PORT=shift;
 #my $NUM_CLIENTS=1;
-my $MAX_NOISE_INSTANCES=10;
+my $MAX_NOISE_INSTANCES=100;
 #my $WORKLOAD_INSTANCES=1;
 my $THINK_TIME=100;
 
@@ -18,6 +18,8 @@ my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
 
 my $running :shared;
 my @ports :shared;
+
+my @noise_ports;
 
 print STDERR "Starting workload\n";
 
@@ -28,28 +30,26 @@ system("curl -s -o /dev/null http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numC
 
 print STDERR "Workload started\n";
 
-print STDERR "Starting noise\n";
+my $i=0;
 
 for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num_noise_instances++) 
 {
+  my @threads;
 
-my @threads;
-my @noise_ports;
-
-for (my $i=0; $i<$num_noise_instances; $i++)
-{
+  print STDERR "Starting (more) noise\n";
   !system("docker run -pd 80 --name noise$i --oom-kill-disable noise:httpd 1>/dev/null && echo 'noise$i' >&2") || die ("Could not start noise instance\n");
 
   # find out the port
   my $port = `docker ps --filter name="noise$i" --format "{{.Ports}}"`;
   $port =~ /.*\:([0-9]*)->80\/tcp.*/;
   push @ports, $1;
-}
 
-print STDERR "Noise started\n";
+  $i++;
+
+  print STDERR "Noise started\n";
 
 
-print STDERR "Starting noise clients\n";
+  print STDERR "Starting noise clients\n";
 
 $running=1;
 push @threads, threads->create(sub {
@@ -97,19 +97,19 @@ print STDERR "Measurement complete\n";
 
 $running=0;
 
-print STDERR "Starting cleanup\n";
-
-for (my $i=0; $i<$num_noise_instances; $i++)
-{
-  system("docker stop noise$i >/dev/null");
-  system("docker rm noise$i >&2");
-}
-
 # let all threads join
 foreach my $thread (@threads) {
   $thread->join();
 }
                            
-print STDERR "Cleanup complete\n";
+}
 
-}                                                                                                                                                                              
+print STDERR "Starting cleanup\n";
+
+for (my $i=0; $i<$MAX_NOISE_INSTANCES; $i++)
+{
+  system("docker stop noise$i >/dev/null");
+  system("docker rm noise$i >&2");
+}
+
+print STDERR "Cleanup complete\n";                                                                                                                                                                              
