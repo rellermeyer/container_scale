@@ -3,7 +3,8 @@ ACME_AIR_NODE_GIT:=https://github.com/acmeair/acmeair-nodejs.git
 
 ACME_AIR_GIT:=https://github.com/acmeair/acmeair.git
 
-NOECHO:=@
+#NOECHO:=@
+NOECHO:=
 GIT:=git
 PATCH:=patch
 CURL:=curl
@@ -21,6 +22,7 @@ NOT_EXIST:=1
 .PHONY: acmeair_authservice
 .PHONY: mongo
 .PHONY: noise
+.PHONY: workload
 
 if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
 if_container = $(shell docker ps -a | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
@@ -42,7 +44,7 @@ acmeair: acmeair-nodejs
 
 
 workload: acmeair-nodejs
-	$(NOECHO) $(CD) acmeair-nodejs; docker build -t acmeair/workload document/workload
+	$(NOECHO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/workload document/workload)
 
 mongo:	
 	$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
@@ -62,20 +64,21 @@ noise/httpd/images:
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Iunctus_SPOT5_5m_8bit_RGB_DRA_torngat_mountains_national_park_8bits_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/GeoEye_Ikonos_1m_8bit_RGB_DRA_Oil_2005NOV25_8bits_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/GeoEye_GeoEye1_50cm_8bit_RGB_DRA_Mining_2009FEB14_8bits_sub_r_15.jpg
-	dd if=/dev/urandom of=noise/httpd/images/test1.jpg bs=4096 count=62500
-	dd if=/dev/urandom of=noise/httpd/images/test2.jpg bs=4096 count=62500
-	dd if=/dev/urandom of=noise/httpd/images/test3.jpg bs=4096 count=62500
-	dd if=/dev/urandom of=noise/httpd/images/test4.jpg bs=4096 count=62500
-	dd if=/dev/urandom of=noise/httpd/images/test5.jpg bs=4096 count=62500
-	dd if=/dev/urandom of=noise/httpd/images/test6.jpg bs=4096 count=62500
+	for i in `seq 1 10`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=62500; done
+	for i in `seq 1 20`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=25600; done
 
 noise: noise/httpd/images
-	docker build -t noise:httpd noise/httpd
+#	docker build -t noise:httpd noise/httpd
+	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)
 
 run: acmeair_web workload noise
 	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
 	sleep 2
 	perl benchmark.pl $(HOST_IP) $(WEB_PORT)
+
+noiseclean:
+	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(EXISTS),docker rmi noise:httpd)
+	$(NOECHO) $(RM) -rf noise/httpd/images
 
 clean:
 	$(NOECHO) $(DO) $(call if_running,mongo_001,docker stop mongo_001)

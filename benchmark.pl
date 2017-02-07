@@ -42,65 +42,69 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   # find out the port
   my $port = `docker ps --filter name="noise$i" --format "{{.Ports}}"`;
   $port =~ /.*\:([0-9]*)->80\/tcp.*/;
-  push @ports, $1;
+  $port = $1;
+  push @ports, $port;
+
+  # fetch all files to warm up the httpd server and make it use memory
+  foreach file (@files) {
+    system("wget -q -O /dev/null http://$HOST_IP:$port/$file");
+  }
 
   $i++;
 
   print STDERR "Noise started\n";
 
-
   print STDERR "Starting noise clients\n";
 
-$running=1;
-push @threads, threads->create(sub {
-  my $p = @ports;
-  my $f = @files;
+  $running=1;
+  push @threads, threads->create(sub {
+    my $p = @ports;
+    my $f = @files;
 
-  while($running) {
-    my $port = $ports[int(rand($p))];
-    my $file = $files[int(rand($f))];
+    while($running) {
+      my $port = $ports[int(rand($p))];
+      my $file = $files[int(rand($f))];
     
-    #print "client: http://$HOST_IP:$port/$file\n";     
-    system("wget -q -O /dev/null http://$HOST_IP:$port/$file");    
+      #print "client: http://$HOST_IP:$port/$file\n";     
+      system("wget -q -O /dev/null http://$HOST_IP:$port/$file");    
 
-    usleep($THINK_TIME);
-  }
-  print STDERR "client thread exits\n";
-  
-});
+      usleep($THINK_TIME);
+    }
+    print STDERR "client thread exits\n";
+  });
 
-print STDERR "Noise clients started\n";
+  print STDERR "Noise clients started\n";
 
-print STDERR "Starting measurement\n";
+  print STDERR "Starting measurement\n";
 
-# run the workload client for measurement
-open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=100 --name acmeair_workload acmeair/workload |"; 
-while (my $line = <$pipe>) {
-   chomp ($line);
-   if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
-     my $requests=$1;
-     my $time=$2;
-     my $throughput=$3;
-     my $avg=$4;
-     my $min=$5;
-     my $max=$6;
-     my $err=$7;
-     if ($err != 0) {
+  # run the workload client for measurement
+  open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=100 --name acmeair_workload acmeair/workload |"; 
+  while (my $line = <$pipe>) {
+    chomp ($line);
+    if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
+      my $requests=$1;
+      my $time=$2;
+      my $throughput=$3;
+      my $avg=$4;
+      my $min=$5;
+      my $max=$6;
+      my $err=$7;
+      if ($err != 0) {
         print "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
-     } else {
+      } else {
         print "$num_noise_instances\t$throughput\n";
-     }
-   }
-}
+      }
+    }
+  }
 
-print STDERR "Measurement complete\n";
+  print STDERR "Measurement complete\n";
 
-$running=0;
+  $running=0;
 
-# let all threads join
-foreach my $thread (@threads) {
-  $thread->join();
-}
+  # let all threads join
+  foreach my $thread (@threads) {
+    $thread->join();
+  }
                            
 }
 
