@@ -46,7 +46,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   push @ports, $port;
 
   # fetch all files to warm up the httpd server and make it use memory
-  foreach file (@files) {
+  foreach my $file (@files) {
     system("wget -q -O /dev/null http://$HOST_IP:$port/$file");
   }
 
