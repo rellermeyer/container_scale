@@ -3,8 +3,7 @@ ACME_AIR_NODE_GIT:=https://github.com/acmeair/acmeair-nodejs.git
 
 ACME_AIR_GIT:=https://github.com/acmeair/acmeair.git
 
-#NOECHO:=@
-NOECHO:=
+NOECHO:=@
 GIT:=git
 PATCH:=patch
 CURL:=curl
@@ -18,11 +17,14 @@ NOT_EXIST:=1
 
 .PHONY: clean
 .PHONY: depclean
-.PHONY: acmeair_nodejs
+.PHONY: noiseclean
+.PHONY: acmeair
 .PHONY: acmeair_authservice
+.PHONY: acmeair_web
 .PHONY: mongo
 .PHONY: noise
 .PHONY: workload
+.PHONY: run
 
 if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
 if_container = $(shell docker ps -a | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
@@ -40,11 +42,11 @@ acmeair-nodejs:
 	$(CD) acmeair-nodejs; $(PATCH) -p1 < ../json_simple_url.patch
 
 acmeair: acmeair-nodejs
-	$(NOECHO) $(CD) acmeair-nodejs; docker build -t acmeair/web .
+	$(NOECHO) $(DO) $(call if_image,acmeair/web,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/web .)
 
 
 workload: acmeair-nodejs
-	$(NOECHO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/workload document/workload)
+	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/workload document/workload)
 
 mongo:	
 	$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
@@ -54,7 +56,6 @@ acmeair_authservice: mongo acmeair
 
 acmeair_web: acmeair_authservice 
 	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
-	echo "WEB PORT: $(WEB_PORT)"
 
 noise/httpd/images:
 #	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
@@ -64,12 +65,12 @@ noise/httpd/images:
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Iunctus_SPOT5_5m_8bit_RGB_DRA_torngat_mountains_national_park_8bits_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/GeoEye_Ikonos_1m_8bit_RGB_DRA_Oil_2005NOV25_8bits_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/GeoEye_GeoEye1_50cm_8bit_RGB_DRA_Mining_2009FEB14_8bits_sub_r_15.jpg
-	for i in `seq 1 10`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=62500; done
-	for i in `seq 1 20`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=25600; done
+	for i in `seq 1 20`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=62500; done
+	for i in `seq 1 40`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=25600; done
 
 noise: noise/httpd/images
-#	docker build -t noise:httpd noise/httpd
-	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)
+#	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)
+	$(NOECHO) docker build -t noise:httpd noise/httpd
 
 run: acmeair_web workload noise
 	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)

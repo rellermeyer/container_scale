@@ -9,10 +9,16 @@ use Time::HiRes qw(usleep);
 
 my $HOST_IP=shift;
 my $WEB_PORT=shift;
-#my $NUM_CLIENTS=1;
 my $MAX_NOISE_INSTANCES=100;
-#my $WORKLOAD_INSTANCES=1;
+my $CLIENT_THREADS=20;
 my $THINK_TIME=100;
+
+$SIG{INT}  = \&signal_handler;
+$SIG{TERM} = \&signal_handler;
+
+sub signal_handler {
+    die "benchmark terminates due to signal $!";
+}
 
 my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
 
@@ -78,7 +84,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   print STDERR "Starting measurement\n";
 
   # run the workload client for measurement
-  open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=100 --name acmeair_workload acmeair/workload |"; 
+  open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
   while (my $line = <$pipe>) {
     chomp ($line);
     if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
@@ -92,7 +98,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
       if ($err != 0) {
         print "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
       } else {
-        print "$num_noise_instances\t$throughput\n";
+        print "$num_noise_instances\t$throughput\t$avg\t$min\t$max\n";
       }
     }
   }
@@ -108,12 +114,14 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
                            
 }
 
-print STDERR "Starting cleanup\n";
+END {
+  print STDERR "Starting cleanup\n";
 
-for (my $i=0; $i<$MAX_NOISE_INSTANCES; $i++)
-{
-  system("docker stop noise$i >/dev/null");
-  system("docker rm noise$i >&2");
-}
+  for (my $i=0; $i<$MAX_NOISE_INSTANCES; $i++)
+  {
+    system("docker stop noise$i >/dev/null");
+    system("docker rm noise$i >&2");
+  }
 
-print STDERR "Cleanup complete\n";                                                                                                                                                                              
+   print STDERR "Cleanup complete\n";
+}                                                                                                                                                                             
