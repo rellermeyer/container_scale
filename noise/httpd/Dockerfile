@@ -13,7 +13,6 @@ WORKDIR $HTTPD_PREFIX
 RUN mkdir -p /run/apache2
 
 RUN apk add --no-cache apache2
-RUN apk add --no-cache mod_file_cache
 
 COPY images/* /var/www/localhost/htdocs/
 

@@ -7,7 +7,6 @@ NOECHO:=@
 GIT:=git
 PATCH:=patch
 CURL:=curl
-#DO:=/bin/sh -c true
 DO:=/bin/true
 CD:=cd
 RM:=rm
@@ -27,7 +26,7 @@ NOT_EXIST:=1
 .PHONY: workload
 .PHONY: run
 
-if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
+if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3) ; fi)
 if_container = $(shell docker ps -a | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
 if_running = $(shell docker inspect $(1) 2>&1 | grep "\"Running\": true" 1>/dev/null; if [ $$? -eq 0 ] ; then $(2); fi)
 
@@ -35,7 +34,7 @@ AUTH_PORT = $(shell docker ps --filter name="acmeair_authservice" --format "{{.P
 WEB_PORT = $(shell docker ps --filter name="acmeair_web" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9080\/tcp.*/\1/")
 HOST_IP:=172.17.0.1
 
-all: acme_download mongo
+all: mongo acmeair_authservice acmeair_web
 
 acmeair-nodejs: 
 	$(NOECHO) $(GIT) clone $(ACME_AIR_NODE_GIT) acmeair-nodejs
@@ -43,11 +42,11 @@ acmeair-nodejs:
 	$(CD) acmeair-nodejs; $(PATCH) -p1 < ../json_simple_url.patch
 
 acmeair: acmeair-nodejs
-	$(NOECHO) $(DO) $(call if_image,acmeair/web,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/web .)
+	$(NOECHO) $(DO) $(call if_image,acmeair/web,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -q -t acmeair/web .)
 
 
 workload: acmeair-nodejs
-	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -t acmeair/workload document/workload)
+	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -q -t acmeair/workload document/workload)
 
 mongo:	
 	$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
