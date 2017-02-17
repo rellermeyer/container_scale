@@ -34,7 +34,7 @@ AUTH_PORT = $(shell docker ps --filter name="acmeair_authservice" --format "{{.P
 WEB_PORT = $(shell docker ps --filter name="acmeair_web" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9080\/tcp.*/\1/")
 HOST_IP:=172.17.0.1
 
-all: mongo acmeair_authservice acmeair_web
+all: mongo acmeair_authservice acmeair_web workload noise
 
 acmeair-nodejs: 
 	$(NOECHO) $(GIT) clone $(ACME_AIR_NODE_GIT) acmeair-nodejs
@@ -58,15 +58,17 @@ acmeair_web: acmeair_authservice
 	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
 
 noise/httpd/images:
-#	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
+	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Airbus_Pleiades_50cm_8bit_RGB_Yogyakarta.jpg
-#	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
+	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/DigitalGlobe_WorldView2_50cm_8bit_Pansharpened_RGB_DRA_Rome_Italy_2009DEC10_8bits_sub_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/RapidEye_RapidEye_5m_RGB_Altotting_Germany_Agriculture_and_Forestry_2009MAY17_8bits_sub_r_2.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/Iunctus_SPOT5_5m_8bit_RGB_DRA_torngat_mountains_national_park_8bits_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/uploads/2015/02/GeoEye_Ikonos_1m_8bit_RGB_DRA_Oil_2005NOV25_8bits_r_1.jpg
 	$(WGET) -P noise/httpd/images http://effigis.com/wp-content/themes/effigis_2014/img/GeoEye_GeoEye1_50cm_8bit_RGB_DRA_Mining_2009FEB14_8bits_sub_r_15.jpg
-	for i in `seq 1 20`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=62500; done
-	for i in `seq 1 40`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=25600; done
+	for i in `seq 1 500`; do dd if=/dev/urandom of=noise/httpd/images/test_smallest$$i.jpg bs=4096 count=640; done
+	for i in `seq 1 100`; do dd if=/dev/urandom of=noise/httpd/images/test_small$$i.jpg bs=4096 count=2560; done
+	for i in `seq 1 80`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=6400; done
+	for i in `seq 1 40`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=12800; done
 
 noise: noise/httpd/images
 #	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)

@@ -30,7 +30,7 @@ my @ports :shared;
 my @noise_ports;
 
 # cleaning up stale noise instances if any exist
-system("docker ps --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f");
+system("docker ps -a --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f >&2");
 
 print STDERR "Starting workload\n";
 
@@ -114,7 +114,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
     }
   }
 
-  if ($err > 1) {
+  if ($err > 0) {
     die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
   } else {
     print "$num_noise_instances\t$throughput\t$avg\t$min\t$max\n";
@@ -134,7 +134,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
 END {
   print STDERR "Starting cleanup\n";
 
-  system("docker ps --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f 2>/dev/null");
+  system("docker ps -a --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f 2>/dev/null >&2");
 
   print STDERR "Cleanup complete\n";
 }                                                                                                                                                                             
