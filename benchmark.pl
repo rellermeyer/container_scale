@@ -10,7 +10,7 @@ use Time::HiRes qw(usleep);
 my $HOST_IP=shift;
 my $WEB_PORT=shift;
 my $MAX_NOISE_INSTANCES=50;
-my $INCREMENT=5;
+my $INCREMENT=2;
 my $NOISE_CLIENTS=10;
 my $CLIENT_THREADS=25;
 my $THINK_TIME=250;
@@ -28,6 +28,9 @@ my $running :shared;
 my @ports :shared;
 
 my @noise_ports;
+
+# cleaning up stale noise instances if any exist
+system("docker ps --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f");
 
 print STDERR "Starting workload\n";
 
@@ -51,7 +54,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
 
   for (my $c=$i; $c<$num_noise_instances; $c++) {
     print STDERR "Starting (more) noise\n";
-    !system("docker run -p 80 -d --name noise$i --oom-kill-disable noise:httpd 1>/dev/null && echo 'noise$i' >&2") || die ("Could not start noise instance\n");
+    !system("docker run -p 80 -d --name noise$i --privileged --oom-kill-disable noise:httpd 1>/dev/null && echo 'noise$i' >&2") || die ("Could not start noise instance\n");
 
     # find out the port
     my $port = `docker ps --filter name="noise$i" --format "{{.Ports}}"`;
@@ -59,11 +62,6 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
     $port = $1;
     push @ports, $port;
 
-    # fetch all files to warm up the httpd server and make it use memory
-    foreach my $file (@files) {
-      system("wget -q -O /dev/null http://$HOST_IP:$port/$file");
-    }
-  
     $i++;
   }
 
@@ -72,8 +70,6 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   print STDERR "Starting noise clients\n";
 
   $running=1;
-  #for (my $c=0; $c<=($i / $INCREMENT); $c++) {
-  for (my $c=0; $c<$i; $c++) {
   push @threads, threads->create(sub {
     my $p = @ports;
     my $f = @files;
@@ -82,14 +78,13 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
       my $port = $ports[int(rand($p))];
       my $file = $files[int(rand($f))];
     
-      #print "client: http://$HOST_IP:$port/$file\n";     
-      system("wget -q -O /dev/null http://$HOST_IP:$port/$file");    
+      #print "client: http://$HOST_IP:$port/images/$file\n";     
+      system("wget -q -O /dev/null http://$HOST_IP:$port/images/$file");    
 
       usleep($THINK_TIME);
     }
     print STDERR "client thread exits\n";
   });
-  }
 
   print STDERR "Noise clients started\n";
 
@@ -107,6 +102,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
   while (my $line = <$pipe>) {
     chomp ($line);
+    print STDERR "$line\n";
     if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
       $requests=$1;
       $time=$2;
@@ -118,7 +114,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
     }
   }
 
-  if ($err != 0) {
+  if ($err > 1) {
     die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
   } else {
     print "$num_noise_instances\t$throughput\t$avg\t$min\t$max\n";
@@ -135,14 +131,10 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
                            
 }
 
-cleanup:
-print STDERR "Starting cleanup\n";
+END {
+  print STDERR "Starting cleanup\n";
 
-for (my $i=0; $i<$MAX_NOISE_INSTANCES; $i++)
-{
-  system("docker stop noise$i >/dev/null");
-  system("docker rm noise$i >&2");
-}
+  system("docker ps --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f 2>/dev/null");
 
-print STDERR "Cleanup complete\n";
-                                                                                                                                                                             
+  print STDERR "Cleanup complete\n";
+}                                                                                                                                                                             

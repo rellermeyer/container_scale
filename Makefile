@@ -75,7 +75,7 @@ noise: noise/httpd/images
 run: acmeair_web workload noise
 	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
 	sleep 2
-	perl benchmark.pl $(HOST_IP) $(WEB_PORT)
+	echo "perl benchmark.pl $(HOST_IP) $(WEB_PORT)"
 
 noiseclean:
 	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(EXISTS),docker rmi noise:httpd)

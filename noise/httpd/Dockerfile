@@ -14,8 +14,13 @@ RUN mkdir -p /run/apache2
 
 RUN apk add --no-cache apache2
 
-COPY images/* /var/www/localhost/htdocs/
+RUN mkdir -p /images
+
+COPY images/* /images/
+
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 EXPOSE 80
 
-CMD ["httpd", "-C",  "ServerName localhost", "-e", "Debug", "-DFOREGROUND"]
+CMD ["/start.sh"]
