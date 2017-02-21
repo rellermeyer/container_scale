@@ -52,6 +52,8 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
 {
   my @threads;
 
+  system("echo 3 > /proc/sys/vm/drop_caches");
+
   for (my $c=$i; $c<$num_noise_instances; $c++) {
     print STDERR "Starting (more) noise\n";
     !system("docker run -p 80 -d --name noise$i --privileged --oom-kill-disable noise:httpd 1>/dev/null && echo 'noise$i' >&2") || die ("Could not start noise instance\n");
