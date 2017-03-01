@@ -6,6 +6,7 @@ use threads;
 use threads::shared;
 use File::Basename;
 use Time::HiRes qw(usleep);
+use List::Util qw(sum min max);
 
 my $HOST_IP=shift;
 my $WEB_PORT=shift;
@@ -13,13 +14,23 @@ my $MAX_NOISE_INSTANCES=50;
 my $INCREMENT=2;
 my $NOISE_CLIENTS=10;
 my $CLIENT_THREADS=25;
-my $THINK_TIME=250;
+my $THINK_TIME=150;
+my $REPETITIONS=3;
 
 $SIG{INT}  = \&signal_handler;
 $SIG{TERM} = \&signal_handler;
 
 sub signal_handler {
     die "benchmark terminates due to signal $!";
+}
+
+sub evaluate_values (@) {
+        my $n = @_;
+        my $avg = sum(@_)/$n;
+        my $min = min(@_);
+        my $max = max(@_);
+        my $std_dev = ($min == $max) ? 0 : sqrt(sum(map {($_ - $avg) ** 2} @_) / $n);
+        return ($avg, $std_dev, $min, $max);
 }
 
 my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
@@ -93,34 +104,54 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   print STDERR "Starting measurement\n";
 
   # run the workload client for measurement
-  my $requests;
-  my $time;
-  my $throughput;
-  my $avg;
-  my $min;
-  my $max;
-  my $err=1;
+  my @throughputs;
+  my @averages;
+  my @minima;
+  my @maxima;
 
-  open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
-  while (my $line = <$pipe>) {
-    chomp ($line);
-    print STDERR "$line\n";
-    if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
-      $requests=$1;
-      $time=$2;
-      $throughput=$3;
-      $avg=$4;
-      $min=$5;
-      $max=$6;
-      $err=$7;
+  for (my $r=1; $r<=$REPETITIONS; $r++) {
+    my $requests;
+    my $time;
+    my $throughput;
+    my $avg;
+    my $min;
+    my $max;
+    my $err=1;
+
+    #system("echo 3 > /proc/sys/vm/drop_caches");
+
+    open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
+    while (my $line = <$pipe>) {
+      chomp ($line);
+      print STDERR "$line\n";
+      if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
+        $requests=$1;
+        $time=$2;
+        $throughput=$3;
+        $avg=$4;
+        $min=$5;
+        $max=$6;
+        $err=$7;
+      }
+    }
+
+    if ($err > 0) {
+      die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
+    } else {
+      print STDERR "[$num_noise_instances.$r]\t$throughput\t$avg\t$min\t$max\n";
+      push @throughputs, $throughput;
+      push @averages, $avg;
+      push @minima, $min;
+      push @maxima, $max;
     }
   }
+ 
+  (my $throughput, my $stddev, , ) = evaluate_values(@throughputs);
+  (my $avg, my $avg_stddev, , ) = evaluate_values(@averages);
+  (my $min, , , ) = evaluate_values(@minima);
+  (my $max, , , ) = evaluate_values(@maxima);
 
-  if ($err > 0) {
-    die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
-  } else {
-    print "$num_noise_instances\t$throughput\t$avg\t$min\t$max\n";
-  }
+  print "$num_noise_instances\t$throughput\t$stddev\t$avg\t$avg_stddev\t$min\t$max\n";
 
   print STDERR "Measurement complete\n";
 
