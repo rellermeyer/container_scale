@@ -15,7 +15,7 @@ my $INCREMENT=2;
 my $NOISE_CLIENTS=10;
 my $CLIENT_THREADS=25;
 my $THINK_TIME=150;
-my $REPETITIONS=3;
+my $REPETITIONS=1;
 
 $SIG{INT}  = \&signal_handler;
 $SIG{TERM} = \&signal_handler;
