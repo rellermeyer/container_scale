@@ -18,23 +18,17 @@ NOT_EXIST:=1
 .PHONY: clean
 .PHONY: depclean
 .PHONY: noiseclean
+.PHONY: imageclean
 .PHONY: acmeair
-.PHONY: acmeair_authservice
-.PHONY: acmeair_web
 .PHONY: mongo
 .PHONY: noise
 .PHONY: workload
-.PHONY: run
 
 if_image = $(shell docker images | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3) ; fi)
 if_container = $(shell docker ps -a | grep "$(1)" 1>/dev/null; if [ $$? -eq $(2) ] ; then $(3); fi)
 if_running = $(shell docker inspect $(1) 2>&1 | grep "\"Running\": true" 1>/dev/null; if [ $$? -eq 0 ] ; then $(2); fi)
 
-AUTH_PORT = $(shell docker ps --filter name="acmeair_authservice" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9443\/tcp.*/\1/")
-WEB_PORT = $(shell docker ps --filter name="acmeair_web" --format "{{.Ports}}" | sed -r "s/.*\:([0-9]*)->9080\/tcp.*/\1/")
-HOST_IP:=172.17.0.1
-
-all: mongo acmeair_authservice acmeair_web workload noise
+all: mongo acmeair workload noise
 
 acmeair-nodejs: 
 	$(NOECHO) $(GIT) clone $(ACME_AIR_NODE_GIT) acmeair-nodejs
@@ -49,13 +43,8 @@ workload: acmeair-nodejs
 	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(NOT_EXIST),$(CD) acmeair-nodejs;docker build -q -t acmeair/workload document/workload)
 
 mongo:	
-	$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
-
-acmeair_authservice: mongo acmeair
-	$(NOECHO) $(DO) $(call if_container,acmeair_authservice,$(NOT_EXIST),docker run -d -P --name acmeair_authservice -e APP_NAME=authservice_app.js --link mongo_001:mongo acmeair/web)
-
-acmeair_web: acmeair_authservice 
-	$(NOECHO) $(DO) $(call if_container,acmeair_web,$(NOT_EXIST),docker run -d -P --name acmeair_web -e AUTH_SERVICE=$(HOST_IP):$(AUTH_PORT) --link mongo_001:mongo acmeair/web)
+	docker pull mongo
+	#$(NOECHO) $(DO) $(call if_container,mongo_001,$(NOT_EXIST),docker run --name mongo_001 -d -P mongo) 
 
 noise/httpd/images:
 	$(WGET) -P noise/httpd/images https://upload.wikimedia.org/wikipedia/commons/f/ff/Pizigani_1367_Chart_10MB.jpg 
@@ -72,11 +61,6 @@ noise/httpd/images:
 noise: noise/httpd/images
 #	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)
 	$(NOECHO) docker build -t noise:httpd noise/httpd
-
-run: acmeair_web workload noise
-	$(NOECHO) $(DO) $(call if_container,acmeair_workload,$(EXISTS),docker rm acmeair_workload)
-	sleep 2
-	echo "perl benchmark.pl $(HOST_IP) $(WEB_PORT)"
 
 noiseclean:
 	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(EXISTS),docker rmi noise:httpd)
