@@ -8,8 +8,7 @@ use File::Basename;
 use Time::HiRes qw(usleep);
 use List::Util qw(sum min max);
 
-my $HOST_IP=shift;
-my $WEB_PORT=shift;
+my $HOST_IP="172.17.0.1";
 my $MAX_NOISE_INSTANCES=50;
 my $INCREMENT=2;
 my $NOISE_CLIENTS=10;
@@ -33,6 +32,16 @@ sub evaluate_values (@) {
         return ($avg, $std_dev, $min, $max);
 }
 
+sub create_acmeair_instance($) {
+  my $instance = shift;
+  system("docker run --name mongo_${instance} -d -P mongo");
+  system("docker run -d -P --name acmeair_authservice_$(instance) -e APP_NAME=authservice_app.js --link mongo_${instance):mongo acmeair/web");
+  my $port = `docker port acmeair_authservice 9080 | cut -d ":" -f 2`;
+  system("docker run -d -P --name acmeair_web_${instance} -e AUTH_SERVICE=${HOST_IP}:${port} --link mongo_${instance}:mongo acmeair/web"); 
+
+  return $port;
+}
+
 my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
 
 my $running :shared;
@@ -45,7 +54,7 @@ system("docker ps -a --filter 'name=noise*' --format {{.Names}} | xargs docker r
 
 print STDERR "Starting workload\n";
 
-# TODO: move from Makefile
+my $WEB_PORT=create_acmeair_instance("001");
 
 # initialize the database
 system("curl -s -o /dev/null http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000 >&2"); 
@@ -54,7 +63,6 @@ print STDERR "Workload started\n";
 
 # make one run to warm system up
 system("docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=100 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload >&2 2>/dev/null");
-
 
 # benchmark loop
 my $i=0;
