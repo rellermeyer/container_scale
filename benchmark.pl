@@ -1,4 +1,4 @@
-#/usr/bin/perl
+#!/usr/bin/perl -Ilib
 
 use strict;
 use warnings;
@@ -8,6 +8,8 @@ use File::Basename;
 use Time::HiRes qw(usleep);
 use List::Util qw(sum min max);
 use Statistics::Descriptive;
+
+use ContainerScale::Aux qw(:DEFAULT);
 
 my $HOST_IP="172.17.0.1";
 my $MAX_NOISE_INSTANCES=50;
@@ -24,59 +26,6 @@ sub signal_handler {
     die "benchmark terminates due to signal $!";
 }
 
-sub evaluate_values (@) {
-        my $n = @_;
-        my $avg = sum(@_)/$n;
-        my $min = min(@_);
-        my $max = max(@_);
-        my $std_dev = ($min == $max) ? 0 : sqrt(sum(map {($_ - $avg) ** 2} @_) / $n);
-        return ($avg, $std_dev, $min, $max);
-}
-
-sub percentile($$) {
-  my $filename = shift;
-  my $percentile = shift;
-  my @data;
-  my $stat = Statistics::Descriptive::Full->new();
-
-  open (my $file, $filename) or die "Could not open $filename\n";
-
-  while (my $line = <$file>) {
-    chomp $line;
-    if ($line =~ /^\<httpSample t=\"(\d+)\".*$/) {
-      push @data, $1;
-    }
-  }
-
-  close ($file);
-
-  $stat->add_data(@data);
-  $stat->sort_data();
-  return $stat->percentile($percentile);
-}
-
-sub create_acmeair_instance ($) {
-  my $instance = shift;
-  system("docker run --name mongo_$instance -d -P mongo");
-  system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web");
-  my $auth_port = `docker port acmeair_authservice_$instance 9443 | cut -d ":" -f 2`;
-  chomp $auth_port;
-  
-  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$HOST_IP:$auth_port --link mongo_$instance:mongo acmeair/web"); 
-
-  my $port = `docker port acmeair_web_$instance 9080 | cut -d ":" -f 2`;
-  chomp $port;
-  return $port;
-}
-
-sub remove_acmeair_instance($) {
-  #return;
-  my $instance = shift;
-  system("docker rm -f acmeair_web_$instance");
-  system("docker rm -f acmeair_authservice_$instance");
-  system("docker rm -f mongo_$instance");
-}
-
 my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
 
 my $running :shared;
@@ -89,11 +38,9 @@ system("docker ps -a --filter 'name=noise*' --format {{.Names}} | xargs docker r
 
 print STDERR "Starting workload\n";
 
-my $WEB_PORT=create_acmeair_instance("001");
+my $WEB_PORT=create_acmeair_instance($HOST_IP, "001");
 
 # initialize the database
-#system("curl -s -o /dev/null http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000 >&2"); 
-
 my $res;
 do {
   sleep 2;
