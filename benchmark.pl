@@ -32,12 +32,13 @@ sub evaluate_values (@) {
         return ($avg, $std_dev, $min, $max);
 }
 
-sub create_acmeair_instance($) {
+sub create_acmeair_instance ($) {
   my $instance = shift;
-  system("docker run --name mongo_${instance} -d -P mongo");
-  system("docker run -d -P --name acmeair_authservice_$(instance) -e APP_NAME=authservice_app.js --link mongo_${instance):mongo acmeair/web");
-  my $port = `docker port acmeair_authservice 9080 | cut -d ":" -f 2`;
-  system("docker run -d -P --name acmeair_web_${instance} -e AUTH_SERVICE=${HOST_IP}:${port} --link mongo_${instance}:mongo acmeair/web"); 
+  system("docker run --name mongo_$instance -d -P mongo");
+  system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web");
+  my $port = `docker port acmeair_authservice_$instance 9080 | cut -d ":" -f 2`;
+
+  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$HOST_IP:$port --link mongo_$instance:mongo acmeair/web"); 
 
   return $port;
 }
