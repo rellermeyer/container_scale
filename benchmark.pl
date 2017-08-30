@@ -122,7 +122,7 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
       my $port = $ports[int(rand($p))];
       my $file = $files[int(rand($f))];
     
-      print "client: http://$HOST_IP:$port/images/$file\n";     
+      #print "client: http://$HOST_IP:$port/images/$file\n";     
       system("wget -q -O /dev/null http://$HOST_IP:$port/images/$file");    
 
       usleep($THINK_TIME);
