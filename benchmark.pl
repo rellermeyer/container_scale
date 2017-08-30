@@ -38,9 +38,18 @@ sub create_acmeair_instance ($) {
   system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web");
   my $port = `docker port acmeair_authservice_$instance 9080 | cut -d ":" -f 2`;
 
+  chomp $port;
+
   system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$HOST_IP:$port --link mongo_$instance:mongo acmeair/web"); 
 
   return $port;
+}
+
+sub remove_acmeair_instance($) {
+  my $instance = shift;
+  system("docker rm -f acmeair_web_$instance");
+  system("docker rm -f acmeair_authservice_$instance");
+  system("docker rm -f mongo_$instance");
 }
 
 my @files :shared = map(basename($_), glob('noise/httpd/images/*.jpg'));
@@ -177,6 +186,8 @@ END {
   print STDERR "Starting cleanup\n";
 
   system("docker ps -a --filter 'name=noise*' --format {{.Names}} | xargs docker rm -f 2>/dev/null >&2");
+
+  remove_acmeair_instance("001");
 
   print STDERR "Cleanup complete\n";
 }                                                                                                                                                                             
