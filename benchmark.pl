@@ -36,16 +36,18 @@ sub create_acmeair_instance ($) {
   my $instance = shift;
   system("docker run --name mongo_$instance -d -P mongo");
   system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web");
-  my $port = `docker port acmeair_authservice_$instance 9080 | cut -d ":" -f 2`;
+  my $auth_port = `docker port acmeair_authservice_$instance 9443 | cut -d ":" -f 2`;
+  chomp $auth_port;
+  
+  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$HOST_IP:$auth_port --link mongo_$instance:mongo acmeair/web"); 
 
+  my $port = `docker port acmeair_web_$instance 9080 | cut -d ":" -f 2`;
   chomp $port;
-
-  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$HOST_IP:$port --link mongo_$instance:mongo acmeair/web"); 
-
   return $port;
 }
 
 sub remove_acmeair_instance($) {
+  #return;
   my $instance = shift;
   system("docker rm -f acmeair_web_$instance");
   system("docker rm -f acmeair_authservice_$instance");
@@ -67,7 +69,18 @@ print STDERR "Starting workload\n";
 my $WEB_PORT=create_acmeair_instance("001");
 
 # initialize the database
-system("curl -s -o /dev/null http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000 >&2"); 
+#system("curl -s -o /dev/null http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000 >&2"); 
+
+my $res;
+do {
+  sleep 2;
+  $res = `curl -s http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000`;
+  print "$res\n";
+} until ($res =~ /Database Finished Loading/);
+
+sleep 2;
+
+print "http://9.3.45.218:$WEB_PORT/flights.html\n";
 
 print STDERR "Workload started\n";
 
