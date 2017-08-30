@@ -7,6 +7,7 @@ use threads::shared;
 use File::Basename;
 use Time::HiRes qw(usleep);
 use List::Util qw(sum min max);
+use Statistics::Descriptive;
 
 my $HOST_IP="172.17.0.1";
 my $MAX_NOISE_INSTANCES=50;
@@ -30,6 +31,28 @@ sub evaluate_values (@) {
         my $max = max(@_);
         my $std_dev = ($min == $max) ? 0 : sqrt(sum(map {($_ - $avg) ** 2} @_) / $n);
         return ($avg, $std_dev, $min, $max);
+}
+
+sub percentile($$) {
+  my $filename = shift;
+  my $percentile = shift;
+  my @data;
+  my $stat = Statistics::Descriptive::Full->new();
+
+  open (my $file, $filename) or die "Could not open $filename\n";
+
+  while (my $line = <$file>) {
+    chomp $line;
+    if ($line =~ /^\<httpSample t=\"(\d+)\".*$/) {
+      push @data, $1;
+    }
+  }
+
+  close ($file);
+
+  $stat->add_data(@data);
+  $stat->sort_data();
+  return $stat->percentile($percentile);
 }
 
 sub create_acmeair_instance ($) {
@@ -76,7 +99,7 @@ do {
   sleep 2;
   $res = `curl -s http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000`;
   print "$res\n";
-} until ($res =~ /Database Finished Loading/);
+} until ($res =~ /Database Finished Loading/ || $res =~/Already loaded/);
 
 sleep 2;
 
@@ -135,56 +158,47 @@ for (my $num_noise_instances=1; $num_noise_instances<=$MAX_NOISE_INSTANCES; $num
   print STDERR "Starting measurement\n";
 
   # run the workload client for measurement
-  my @throughputs;
-  my @averages;
-  my @minima;
-  my @maxima;
+  my $requests;
+  my $time;
+  my $throughput;
+  my $avg;
+  my $min;
+  my $max;
+  my $perc90;
+  my $perc95;
+  my $perc99;
+  my $err=1;
 
-  for (my $r=1; $r<=$REPETITIONS; $r++) {
-    my $requests;
-    my $time;
-    my $throughput;
-    my $avg;
-    my $min;
-    my $max;
-    my $err=1;
-
-    #system("echo 3 > /proc/sys/vm/drop_caches");
-
-    open my $pipe, "docker run --rm -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
-    while (my $line = <$pipe>) {
-      chomp ($line);
-      print STDERR "$line\n";
-      if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
-        $requests=$1;
-        $time=$2;
-        $throughput=$3;
-        $avg=$4;
-        $min=$5;
-        $max=$6;
-        $err=$7;
-      }
-    }
-
-    if ($err > 0) {
-      die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
-    } else {
-      print STDERR "[$num_noise_instances.$r]\t$throughput\t$avg\t$min\t$max\n";
-      push @throughputs, $throughput;
-      push @averages, $avg;
-      push @minima, $min;
-      push @maxima, $max;
+  open my $pipe, "docker run -i -t -e APP_PORT_9080_TCP_ADDR=$HOST_IP -e APP_PORT_9080_TCP_PORT=$WEB_PORT -e LOOP_COUNT=200 -e NUM_THREAD=$CLIENT_THREADS --name acmeair_workload acmeair/workload |"; 
+  while (my $line = <$pipe>) {
+    chomp ($line);
+    print STDERR "$line\n";
+    if ($line =~ /^summary =\s*(\d+) in\s*(\d*\.?\d+)s =\s*(\d*\.?\d+)\/s Avg:\s*(\d+) Min:\s*(\d+) Max:\s*(\d+) Err:\s*(\d+).*$/) {
+      $requests=$1;
+      $time=$2;
+      $throughput=$3;
+      $avg=$4;
+      $min=$5;
+      $max=$6;
+      $err=$7;
     }
   }
- 
-  (my $throughput, my $stddev, , ) = evaluate_values(@throughputs);
-  (my $avg, my $avg_stddev, , ) = evaluate_values(@averages);
-  (my $min, , , ) = evaluate_values(@minima);
-  (my $max, , , ) = evaluate_values(@maxima);
 
-  print "$num_noise_instances\t$throughput\t$stddev\t$avg\t$avg_stddev\t$min\t$max\n";
+  if ($err > 0) {
+    die "MEASUREMENT INVALID, WORKLOAD ENCOUNTERED $err ERRORS\n";
+  }
 
-  print STDERR "Measurement complete\n";
+  # fetch data file
+  system("docker cp acmeair_workload:/var/workload/acmeair-nodejs/logs/AcmeAir1.jtl AcmeAir1.jtl");
+  system("docker rm acmeair_workload");
+
+  $perc90 = percentile("AcmeAir1.jtl", 90);
+  $perc95 = percentile("AcmeAir1.jtl", 95);
+  $perc99 = percentile("AcmeAir1.jtl", 99);
+
+  system("rm -f AcmeAir1.jtl");
+
+  print "$num_noise_instances\t$throughput\t$avg\t$min\t$max\t$perc90\t$perc95\t$perc99\n";
 
   $running=0;
 
