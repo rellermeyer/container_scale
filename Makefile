@@ -68,7 +68,6 @@ noise/httpd/images:
 	for i in `seq 1 500`; do dd if=/dev/urandom of=noise/httpd/images/test_smallest$$i.jpg bs=4096 count=640; done
 	for i in `seq 1 100`; do dd if=/dev/urandom of=noise/httpd/images/test_small$$i.jpg bs=4096 count=2560; done
 	for i in `seq 1 80`; do dd if=/dev/urandom of=noise/httpd/images/test_medium$$i.jpg bs=4096 count=6400; done
-	for i in `seq 1 40`; do dd if=/dev/urandom of=noise/httpd/images/test_large$$i.jpg bs=4096 count=12800; done
 
 noise: noise/httpd/images
 #	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(NOT_EXIST),docker build -t noise:httpd noise/httpd)
@@ -99,4 +98,6 @@ distclean: clean
 	$(NOECHO) $(DO) $(call if_image,acmeair/workload,$(EXISTS),docker rmi acmeair/workload)
 	$(NOECHO) $(DO) $(call if_image,noise:httpd,$(EXISTS),docker rmi noise:httpd)
 	$(NOECHO) $(RM) -rf acmeair-nodejs
+
+imageclean: distclean
 	$(NOECHO) $(RM) -rf noise/httpd/images
