@@ -46,12 +46,12 @@ sub percentile($$) {
 sub create_acmeair_instance ($$) {
   my $host_ip = shift;
   my $instance = shift;
-  system("docker run --name mongo_$instance -d -P mongo");
-  system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web");
+  system("docker run --name mongo_$instance -d -P mongo 2>/dev/null >&2");
+  system("docker run -d -P --name acmeair_authservice_$instance -e APP_NAME=authservice_app.js --link mongo_$instance:mongo acmeair/web 2>/dev/null >&2");
   my $auth_port = `docker port acmeair_authservice_$instance 9443 | cut -d ":" -f 2`;
   chomp $auth_port;
  
-  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$host_ip:$auth_port --link mongo_$instance:mongo acmeair/web");
+  system("docker run -d -P --name acmeair_web_$instance -e AUTH_SERVICE=$host_ip:$auth_port --link mongo_$instance:mongo acmeair/web 2>/dev/null >&2");
 
   my $port = `docker port acmeair_web_$instance 9080 | cut -d ":" -f 2`;
   chomp $port;

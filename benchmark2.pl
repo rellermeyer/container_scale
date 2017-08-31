@@ -43,12 +43,12 @@ for (my $num_instances=1; $num_instances<=$MAX_INSTANCES; $num_instances+=$INCRE
   do {
     sleep 2;
     $res = `curl -s http://$HOST_IP:$WEB_PORT/rest/api/loader/load?numCustomers=10000`;
-    print "$res\n";
+    print STDERR "$res\n";
   } until ($res =~ /Database Finished Loading/ || $res =~/Already loaded/);
 
   sleep 2;
 
-  print "http://9.3.45.218:$WEB_PORT/flights.html\n";
+  #print "http://9.3.45.218:$WEB_PORT/flights.html\n";
 
   print STDERR "Workload started\n";
 
@@ -100,14 +100,14 @@ for (my $num_instances=1; $num_instances<=$MAX_INSTANCES; $num_instances+=$INCRE
       }
 
       # fetch data file
-      system("docker cp acmeair_workload$num:/var/workload/acmeair-nodejs/logs/AcmeAir1.jtl AcmeAir1.jtl");
+      system("docker cp acmeair_workload$num:/var/workload/acmeair-nodejs/logs/AcmeAir1.jtl AcmeAir$num.jtl");
       system("docker rm acmeair_workload$num");
 
-      $perc90 = percentile("AcmeAir1.jtl", 90);
-      $perc95 = percentile("AcmeAir1.jtl", 95);
-      $perc99 = percentile("AcmeAir1.jtl", 99);
+      $perc90 = percentile("AcmeAir$num.jtl", 90);
+      $perc95 = percentile("AcmeAir$num.jtl", 95);
+      $perc99 = percentile("AcmeAir$num.jtl", 99);
 
-      system("rm -f AcmeAir1.jtl");
+      system("rm -f AcmeAir$num.jtl");
 
       print "$num\t$throughput\t$avg\t$min\t$max\t$perc90\t$perc95\t$perc99\n";
 
