@@ -101,7 +101,7 @@ for (my $num_instances=1; $num_instances<=$MAX_INSTANCES; $num_instances+=$INCRE
 
       # fetch data file
       system("docker cp acmeair_workload$num:/var/workload/acmeair-nodejs/logs/AcmeAir1.jtl AcmeAir$num.jtl");
-      system("docker rm acmeair_workload$num");
+      system("docker rm acmeair_workload$num 2>/dev/null");
 
       $perc90 = percentile("AcmeAir$num.jtl", 90);
       $perc95 = percentile("AcmeAir$num.jtl", 95);
@@ -119,7 +119,9 @@ for (my $num_instances=1; $num_instances<=$MAX_INSTANCES; $num_instances+=$INCRE
   foreach my $thread (@threads) {
     $thread->join();
   }
-                           
+
+  # print newline to make a new group in GNUplot...
+  print STDERR "\n";                           
 }
 
 END {
